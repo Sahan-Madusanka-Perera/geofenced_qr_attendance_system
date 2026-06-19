@@ -1,0 +1,25 @@
+{
+  "name": "qr-attendance-server",
+  "version": "1.0.0",
+  "description": "Backend API for QR-based university attendance system",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "db:migrate": "psql -h localhost -U admin -d attendance_db -f ../db/migrations/001_init.sql",
+    "db:seed": "psql -h localhost -U admin -d attendance_db -f ../db/migrations/002_seed.sql"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "csv-writer": "^1.6.0",
+    "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.1",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1",
+    "qrcode": "^1.5.4"
+  }
+}
