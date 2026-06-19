@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getSessions } from '../services/api';
+import { getSessions, getToken, API_BASE } from '../services/api';
 import { useSSE } from '../hooks/useSSE';
 import { useAuth } from '../context/AuthContext';
-import { getToken } from '../services/api';
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -28,7 +27,7 @@ export default function ProjectorView() {
 
   const token = getToken();
   const sseUrl = started && sessionId
-    ? `/api/qr/stream/${sessionId}?token=${token}`
+    ? `${API_BASE}/qr/stream/${sessionId}?token=${token}`
     : null;
 
   const { data: qrData, connected } = useSSE(sseUrl);
