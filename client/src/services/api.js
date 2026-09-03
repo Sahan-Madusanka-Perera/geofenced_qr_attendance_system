@@ -49,7 +49,12 @@ async function apiFetch(endpoint, options = {}) {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.error || 'Request failed');
+    // The API names which gate rejected a check-in; the UI needs that to
+    // report the failure against the right one instead of generically.
+    const err = new Error(data.error || 'Request failed');
+    err.step = data.step;
+    err.status = response.status;
+    throw err;
   }
 
   return data;

@@ -9,6 +9,24 @@ const { verifyFingerprint } = require('../services/fingerprint.service');
 const router = express.Router();
 
 /**
+ * Course and room labels for a session. The client prints these onto the
+ * student's boarding pass, so they come from the record rather than from
+ * anything the phone sent us.
+ */
+async function getSessionDetails(sessionId) {
+  const { rows } = await pool.query(
+    `SELECT c.code AS course_code, c.name AS course_name,
+            r.name AS classroom_name, r.building
+       FROM sessions s
+       JOIN courses c ON c.id = s.course_id
+       JOIN classrooms r ON r.id = s.classroom_id
+      WHERE s.id = $1`,
+    [sessionId]
+  );
+  return rows[0] || {};
+}
+
+/**
  * POST /api/attendance/checkin
  * The main check-in endpoint. Validates: token → fingerprint → geofence → duplicate.
  */
@@ -78,13 +96,19 @@ router.post('/checkin', authenticate, authorize('student'), checkinLimiter, asyn
 
     // ── Step 5: Check for duplicate ──────────────────────────────────
     const duplicateCheck = await pool.query(
-      'SELECT id FROM attendance WHERE session_id = $1 AND student_id = $2',
+      'SELECT id, check_in_time FROM attendance WHERE session_id = $1 AND student_id = $2',
       [sessionId, studentId]
     );
     if (duplicateCheck.rows.length > 0) {
       return res.status(200).json({
         message: 'You have already checked in for this session',
         alreadyCheckedIn: true,
+        boardingPass: {
+          ...(await getSessionDetails(sessionId)),
+          checkedInAt: duplicateCheck.rows[0].check_in_time,
+          geoVerified,
+          deviceVerified,
+        },
       });
     }
 
@@ -98,8 +122,14 @@ router.post('/checkin', authenticate, authorize('student'), checkinLimiter, asyn
     );
 
     res.status(201).json({
-      message: 'Attendance recorded successfully! ✅',
+      message: 'Attendance recorded',
       alreadyCheckedIn: false,
+      boardingPass: {
+        ...(await getSessionDetails(sessionId)),
+        checkedInAt: new Date().toISOString(),
+        geoVerified,
+        deviceVerified,
+      },
     });
   } catch (err) {
     console.error('Check-in error:', err);

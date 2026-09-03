@@ -1,131 +1,157 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
-  getLecturerCourses,
-  getClassrooms,
-  createSession,
-  stopSession,
-  getSessions,
-  getAttendees,
-  getCourseStats,
-  downloadCSV,
-  downloadExcel,
+  getLecturerCourses, getClassrooms, createSession, stopSession,
+  getSessions, getAttendees, getCourseStats, downloadCSV, downloadExcel,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
-import { Button } from "@/components/ui/button"
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Play, Square, BarChart3, Users, User, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import Masthead from '../components/board/Masthead';
+import Board, { BoardEmpty } from '../components/board/Board';
+import StatusFlag from '../components/board/StatusFlag';
+import ThresholdBar from '../components/board/ThresholdBar';
+import SignalCell from '../components/board/SignalCell';
+import Flap from '../components/board/Flap';
+import { Play, Square, MonitorPlay, BarChart3, Download } from 'lucide-react';
+
+const THRESHOLD = 80;
+const POLL_MS = 5000;
+
+function Field({ label, value, tone = 'text-char' }) {
+  return (
+    <div className="min-w-0">
+      <div className="font-board text-[10px] font-semibold uppercase tracking-board text-char-dim">
+        {label}
+      </div>
+      <div className={`mt-1.5 truncate font-board text-[13px] font-bold uppercase tracking-tight ${tone}`}>
+        {value}
+      </div>
+    </div>
+  );
+}
 
 export default function LecturerDashboard() {
   const { user } = useAuth();
   const [courses, setCourses] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
-  const [, setSessions] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState('');
   const [selectedClassroom, setSelectedClassroom] = useState('');
   const [activeSession, setActiveSession] = useState(null);
   const [attendees, setAttendees] = useState([]);
+  const [statsFor, setStatsFor] = useState(null);
   const [courseStats, setCourseStats] = useState([]);
-  const [, setStatsCourseId] = useState('');
   const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState(false);
+
+  // Rows that were not on the board on the previous poll flap in; the rest
+  // hold still, so arrival is what moves.
+  const seen = useRef(new Set());
+  const [fresh, setFresh] = useState(new Set());
+
+  const applyAttendees = useCallback((list) => {
+    const next = new Set();
+    list.forEach(a => { if (!seen.current.has(a.reg_number)) next.add(a.reg_number); });
+    list.forEach(a => seen.current.add(a.reg_number));
+    setFresh(next);
+    setAttendees(list);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
-      const [coursesData, classroomsData, sessionsData] = await Promise.all([
-        getLecturerCourses(),
-        getClassrooms(),
-        getSessions(),
-      ]);
-      setCourses(coursesData.courses || []);
-      setClassrooms(classroomsData.classrooms || []);
-      setSessions(sessionsData.sessions || []);
-
-      const active = (sessionsData.sessions || []).find(s => s.is_active);
-      setActiveSession(active || null);
-
+      const [c, r, s] = await Promise.all([getLecturerCourses(), getClassrooms(), getSessions()]);
+      setCourses(c.courses || []);
+      setClassrooms(r.classrooms || []);
+      const active = (s.sessions || []).find(x => x.is_active) || null;
+      setActiveSession(active);
       if (active) {
         const att = await getAttendees(active.id);
-        setAttendees(att.attendees || []);
+        applyAttendees(att.attendees || []);
+      } else {
+        seen.current = new Set();
+        setAttendees([]);
       }
     } catch (err) {
-      console.error(err);
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applyAttendees]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    let live = true;
+    Promise.all([getLecturerCourses(), getClassrooms(), getSessions()])
+      .then(async ([c, r, s]) => {
+        if (!live) return;
+        setCourses(c.courses || []);
+        setClassrooms(r.classrooms || []);
+        const active = (s.sessions || []).find(x => x.is_active) || null;
+        setActiveSession(active);
+        if (active) {
+          const att = await getAttendees(active.id);
+          if (live) applyAttendees(att.attendees || []);
+        }
+      })
+      .catch(err => { if (live) toast.error(err.message); })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  }, [applyAttendees]);
 
-  // Poll attendees while session is active
   useEffect(() => {
     if (!activeSession) return;
-    const interval = setInterval(async () => {
+    const id = setInterval(async () => {
       try {
         const att = await getAttendees(activeSession.id);
-        setAttendees(att.attendees || []);
+        applyAttendees(att.attendees || []);
       } catch {
-        // A failed poll is non-fatal; the next tick retries.
+        // A dropped poll is not fatal; the next tick retries.
       }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [activeSession]);
+    }, POLL_MS);
+    return () => clearInterval(id);
+  }, [activeSession, applyAttendees]);
 
-  const handleStartSession = async () => {
+  const handleStart = async () => {
     if (!selectedCourse || !selectedClassroom) {
-      toast.error('Please select a course and classroom');
+      toast.error('Pick a course and a room first.');
       return;
     }
+    setStarting(true);
     try {
       await createSession(parseInt(selectedCourse), parseInt(selectedClassroom));
-      toast.success('Session started! QR codes are now rotating.');
-      refresh();
+      await refresh();
+      toast.success('Session open. The code is rotating.');
     } catch (err) {
       toast.error(err.message);
+    } finally {
+      setStarting(false);
     }
   };
 
-  const handleStopSession = async () => {
+  const handleStop = async () => {
     if (!activeSession) return;
     try {
       await stopSession(activeSession.id);
-      toast.info('Session stopped.');
+      seen.current = new Set();
       setActiveSession(null);
       setAttendees([]);
-      refresh();
+      await refresh();
+      toast.success('Session closed.');
     } catch (err) {
       toast.error(err.message);
     }
   };
 
-  const handleViewStats = async (courseId) => {
-    setStatsCourseId(courseId);
+  const openStats = async (course) => {
+    if (statsFor?.id === course.id) { setStatsFor(null); setCourseStats([]); return; }
+    setStatsFor(course);
+    setCourseStats([]);
     try {
-      const data = await getCourseStats(courseId);
+      const data = await getCourseStats(course.id);
       setCourseStats(data.students || []);
     } catch (err) {
       toast.error(err.message);
@@ -134,265 +160,253 @@ export default function LecturerDashboard() {
 
   if (loading) {
     return (
-      <div className="container mx-auto py-8 space-y-8">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-40 rounded-xl" />)}
-        </div>
+      <div className="mx-auto max-w-[1400px] space-y-8 px-4 py-10 sm:px-6">
+        <Skeleton className="h-9 w-64" />
+        <Skeleton className="h-44 w-full" />
+        <Skeleton className="h-56 w-full" />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-10">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Lecturer Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome, {user?.full_name}</p>
-      </div>
+    <div className="mx-auto max-w-[1400px] space-y-10 px-4 py-10 sm:px-6 sm:py-12">
+      <Masthead
+        title="Sessions"
+        detail={user?.full_name}
+        aside={
+          <StatusFlag tone={activeSession ? 'now' : 'idle'} size="md" live={!!activeSession} flap>
+            {activeSession ? 'Boarding' : 'Gate closed'}
+          </StatusFlag>
+        }
+      />
 
-      {/* Session Controls */}
-      <Card className="border-primary/20 shadow-md">
-        <CardHeader className="bg-muted/30 border-b pb-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <CardTitle className="text-xl flex items-center gap-2">
-              Session Control
-            </CardTitle>
-            {activeSession && (
-              <Badge variant="default" className="bg-emerald-500 hover:bg-emerald-600 border-none animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-white mr-2"></span>
-                LIVE SESSION
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-        
-        <CardContent className="p-6">
-          {!activeSession ? (
-            <div className="flex flex-col md:flex-row items-end gap-4">
-              <div className="w-full md:w-1/3 space-y-2">
-                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Course</label>
+      {/* Gate desk */}
+      <section className="border border-slat-edge bg-slat">
+        {!activeSession ? (
+          <div className="p-5 sm:p-7">
+            <h2 className="font-board text-[11px] font-semibold uppercase tracking-gate text-char-dim">
+              Open a session
+            </h2>
+            <p className="mt-2.5 max-w-[64ch] text-sm leading-relaxed text-char-dim">
+              Starting a session begins the code rotation for the room you pick.
+              Only students inside that room&apos;s boundary can check in.
+            </p>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+              <div className="space-y-2.5">
+                <Label htmlFor="select-course">Course</Label>
                 <Select value={selectedCourse} onValueChange={setSelectedCourse}>
-                  <SelectTrigger id="select-course">
-                    <SelectValue placeholder="Select course..." />
-                  </SelectTrigger>
+                  <SelectTrigger id="select-course"><SelectValue placeholder="Choose a course" /></SelectTrigger>
                   <SelectContent>
                     {courses.map(c => (
-                      <SelectItem key={c.id} value={c.id.toString()}>{c.code} — {c.name}</SelectItem>
+                      <SelectItem key={c.id} value={String(c.id)}>{c.code} — {c.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="w-full md:w-1/3 space-y-2">
-                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Classroom</label>
+              <div className="space-y-2.5">
+                <Label htmlFor="select-classroom">Room</Label>
                 <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
-                  <SelectTrigger id="select-classroom">
-                    <SelectValue placeholder="Select classroom..." />
-                  </SelectTrigger>
+                  <SelectTrigger id="select-classroom"><SelectValue placeholder="Choose a room" /></SelectTrigger>
                   <SelectContent>
                     {classrooms.map(c => (
-                      <SelectItem key={c.id} value={c.id.toString()}>{c.name} — {c.building}</SelectItem>
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name} — {c.building}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <Button
-                className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white"
-                size="lg"
-                onClick={handleStartSession}
-                id="start-session-btn"
+                variant="confirm" size="lg" onClick={handleStart}
+                disabled={starting || !selectedCourse || !selectedClassroom}
+                id="start-session-btn" className="lg:w-auto"
               >
-                <Play className="w-4 h-4 mr-2" />
-                Start Session
+                <Play className="size-3.5" strokeWidth={2.5} />
+                {starting ? 'Opening' : 'Start session'}
               </Button>
             </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-4 rounded-lg border bg-muted/20">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full md:w-auto">
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Course</p>
-                    <p className="text-lg font-bold mt-1 text-primary">
-                      {activeSession.course_code} — {activeSession.course_name}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Room</p>
-                    <p className="text-lg font-bold mt-1">
-                      {activeSession.classroom_name}
-                    </p>
-                  </div>
-                </div>
-                
-                <Button
-                  variant="destructive"
-                  size="lg"
-                  className="w-full md:w-auto flex-shrink-0"
-                  onClick={handleStopSession}
-                  id="stop-session-btn"
-                >
-                  <Square className="w-4 h-4 mr-2" />
-                  Stop Session
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-5 border-b border-slat-edge p-5 sm:grid-cols-2 sm:p-7 lg:grid-cols-[1.4fr_1fr_auto] lg:items-end">
+              <Field label="Course" value={`${activeSession.course_code} — ${activeSession.course_name}`} tone="text-amber" />
+              <Field label="Room" value={`${activeSession.classroom_name}${activeSession.building ? ` · ${activeSession.building}` : ''}`} />
+              <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-1 lg:justify-end">
+                <Button variant="outline" size="lg" asChild>
+                  <Link to={`/projector?sessionId=${activeSession.id}`}>
+                    <MonitorPlay className="size-3.5" strokeWidth={2.5} />
+                    Projector
+                  </Link>
+                </Button>
+                <Button variant="destructive" size="lg" onClick={handleStop} id="stop-session-btn">
+                  <Square className="size-3.5" strokeWidth={2.5} />
+                  Stop session
                 </Button>
               </div>
-
-              {/* Live Attendees */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-bold flex items-center gap-2">
-                    <Users className="w-5 h-5 text-primary" /> Live Check-ins
-                  </h3>
-                  <Badge variant="secondary" className="bg-primary/10 text-primary">{attendees.length} students</Badge>
-                </div>
-
-                {attendees.length > 0 ? (
-                  <div className="border rounded-md">
-                    <Table>
-                      <TableHeader className="bg-muted/50">
-                        <TableRow>
-                          <TableHead>Reg. No.</TableHead>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Time</TableHead>
-                          <TableHead>GPS</TableHead>
-                          <TableHead>Device</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {attendees.map((a) => (
-                          <TableRow key={a.reg_number}>
-                            <TableCell className="font-mono font-medium">{a.reg_number}</TableCell>
-                            <TableCell>{a.full_name}</TableCell>
-                            <TableCell className="font-mono text-muted-foreground">
-                              {new Date(a.check_in_time).toLocaleTimeString()}
-                            </TableCell>
-                            <TableCell>{a.geo_verified ? '✅' : '❌'}</TableCell>
-                            <TableCell>{a.device_verified ? '✅' : '❌'}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center p-8 border rounded-md border-dashed text-muted-foreground bg-muted/10">
-                    <Loader2 className="w-8 h-8 mb-4 animate-spin text-muted" />
-                    <p>Waiting for students to scan... 📱</p>
-                  </div>
-                )}
-              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* Course Reports */}
-      <div className="space-y-4">
-        <h2 className="text-2xl font-bold tracking-tight">Course Reports</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {courses.map((course) => (
-            <Card key={course.id} className="hover:shadow-md transition-all duration-200">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-mono text-primary font-bold">{course.code}</CardTitle>
-                <CardDescription className="text-lg font-semibold text-foreground mt-1">
-                  {course.name}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2 pt-2">
+            <div className="p-5 sm:p-7">
+              <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+                <h2 className="font-board text-[11px] font-semibold uppercase tracking-gate text-char-dim">
+                  Checked in
+                </h2>
+                <div className="flex items-baseline gap-2">
+                  <Flap value={String(attendees.length).padStart(2, '0')} className="text-2xl font-bold text-amber" />
+                  <span className="font-board text-[10px] uppercase tracking-board text-char-dim">
+                    {attendees.length === 1 ? 'student' : 'students'}
+                  </span>
+                </div>
+              </div>
+
+              <Board
+                arriving={a => fresh.has(a.reg_number)}
+                columns={[
+                  {
+                    key: 'reg', label: 'Reg. no.', width: 'minmax(0,1.1fr)',
+                    render: a => <span className="truncate font-board text-[12px] font-bold uppercase text-char">{a.reg_number}</span>,
+                  },
+                  {
+                    key: 'name', label: 'Name', width: 'minmax(0,1.6fr)',
+                    render: a => <span className="truncate text-[13px] text-char-dim">{a.full_name}</span>,
+                  },
+                  {
+                    key: 'time', label: 'Time', width: '96px', align: 'right',
+                    render: a => (
+                      <span className="font-board text-[12px] text-char-dim">
+                        {new Date(a.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: 'gps', label: 'GPS', width: '52px', align: 'center', hideBelow: 'sm',
+                    render: a => <SignalCell label="GPS" on={a.geo_verified} />,
+                  },
+                  {
+                    key: 'dev', label: 'Device', width: '62px', align: 'center', hideBelow: 'sm',
+                    render: a => <SignalCell label="Device" on={a.device_verified} />,
+                  },
+                ]}
+                rows={attendees}
+                rowKey={a => a.reg_number}
+                empty={
+                  <BoardEmpty note="The board is live and the code is rotating. Rows appear here as students scan.">
+                    Nobody has scanned yet
+                  </BoardEmpty>
+                }
+              />
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* Courses and exports */}
+      <section className="space-y-4">
+        <h2 className="font-board text-[11px] font-semibold uppercase tracking-gate text-char-dim">
+          Your courses
+        </h2>
+
+        <Board
+          columns={[
+            {
+              key: 'course', label: 'Course', width: 'minmax(0,2fr)',
+              render: c => (
+                <div className="min-w-0">
+                  <div className="font-board text-[12px] font-bold uppercase tracking-tight text-char">{c.code}</div>
+                  <div className="truncate text-[13px] text-char-dim">{c.name}</div>
+                </div>
+              ),
+            },
+            {
+              key: 'dept', label: 'Department', width: 'minmax(0,1.2fr)', hideBelow: 'lg',
+              render: c => <span className="truncate text-[13px] text-char-faint">{c.department || '—'}</span>,
+            },
+            {
+              key: 'actions', label: 'Report', width: 'auto', align: 'right',
+              render: c => (
+                <div className="flex flex-wrap justify-end gap-2">
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleViewStats(course.id)}
-                    id={`view-stats-${course.id}`}
+                    variant={statsFor?.id === c.id ? 'default' : 'outline'} size="sm"
+                    onClick={() => openStats(c)} id={`view-stats-${c.id}`}
                   >
-                    <BarChart3 className="w-4 h-4 mr-2" />
+                    <BarChart3 className="size-3" strokeWidth={2.5} />
                     Stats
                   </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => downloadCSV(course.id)}
-                    id={`export-csv-${course.id}`}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => downloadCSV(c.id)} id={`export-csv-${c.id}`}>
+                    <Download className="size-3" strokeWidth={2.5} />
                     CSV
                   </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => downloadExcel(course.id)}
-                    id={`export-excel-${course.id}`}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => downloadExcel(c.id)} id={`export-excel-${c.id}`}>
+                    <Download className="size-3" strokeWidth={2.5} />
                     Excel
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
+              ),
+            },
+          ]}
+          rows={courses}
+          rowKey={c => c.id}
+          empty={<BoardEmpty note="No courses are assigned to your employee ID.">No courses</BoardEmpty>}
+        />
+      </section>
 
-      {/* Course Stats Table */}
-      {courseStats.length > 0 && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold tracking-tight">Student Attendance</h2>
-            <Badge variant="outline" className="text-sm">{courseStats.length} Students</Badge>
+      {/* Per-student standing */}
+      {statsFor && (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="font-board text-[11px] font-semibold uppercase tracking-gate text-char-dim">
+              {statsFor.code} · student standing
+            </h2>
+            <button
+              type="button"
+              onClick={() => { setStatsFor(null); setCourseStats([]); }}
+              className="font-board text-[10px] uppercase tracking-board text-char-faint underline underline-offset-4 hover:text-char"
+            >
+              Close
+            </button>
           </div>
-          <Card>
-            <Table>
-              <TableHeader className="bg-muted/30">
-                <TableRow>
-                  <TableHead>Reg. Number</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Attended</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Percentage</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {courseStats.map((s) => {
-                  const isSafe = s.attendance_pct >= 80;
-                  const pctColor = isSafe ? 'text-emerald-600 dark:text-emerald-400' : s.attendance_pct >= 60 ? 'text-amber-500' : 'text-destructive';
-                  return (
-                    <TableRow key={s.student_id}>
-                      <TableCell className="font-mono font-medium">{s.reg_number}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="bg-primary/10 p-1.5 rounded-full">
-                            <User className="w-3 h-3 text-primary" />
-                          </div>
-                          {s.full_name}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{s.department || '—'}</TableCell>
-                      <TableCell className="font-mono font-medium">{s.classes_attended}</TableCell>
-                      <TableCell className="font-mono text-muted-foreground">{s.total_classes}</TableCell>
-                      <TableCell>
-                        <span className={`font-mono font-bold ${pctColor}`}>
-                          {s.attendance_pct}%
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {isSafe ? (
-                          <Badge variant="default" className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 border-none dark:text-emerald-400">
-                            <CheckCircle2 className="w-3 h-3 mr-1" /> Eligible
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive" className="bg-destructive/15 text-destructive hover:bg-destructive/25 border-none dark:text-destructive-foreground">
-                            <AlertTriangle className="w-3 h-3 mr-1" /> At Risk
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </Card>
-        </div>
+
+          <Board
+            arriving
+            columns={[
+              {
+                key: 'reg', label: 'Reg. no.', width: 'minmax(0,1.1fr)',
+                render: s => <span className="truncate font-board text-[12px] font-bold uppercase text-char">{s.reg_number}</span>,
+              },
+              {
+                key: 'name', label: 'Name', width: 'minmax(0,1.6fr)',
+                render: s => <span className="truncate text-[13px] text-char-dim">{s.full_name}</span>,
+              },
+              {
+                key: 'bar', label: 'Against cutoff', width: 'minmax(0,1.6fr)', hideBelow: 'md',
+                render: s => <div className="w-full pr-4"><ThresholdBar value={s.attendance_pct} threshold={THRESHOLD} /></div>,
+              },
+              {
+                key: 'count', label: 'Classes', width: '92px', align: 'right', hideBelow: 'sm',
+                render: s => <span className="font-board text-[12px] text-char-dim">{s.classes_attended}/{s.total_classes}</span>,
+              },
+              {
+                key: 'pct', label: 'Rate', width: '76px', align: 'right',
+                render: s => (
+                  <span className={`font-board text-[13px] font-bold ${s.attendance_pct >= THRESHOLD ? 'text-green' : 'text-red'}`}>
+                    {s.attendance_pct}%
+                  </span>
+                ),
+              },
+              {
+                key: 'standing', label: 'Standing', width: '116px', align: 'right',
+                render: s => (
+                  <StatusFlag tone={s.attendance_pct >= THRESHOLD ? 'clear' : 'deny'}>
+                    {s.attendance_pct >= THRESHOLD ? 'Confirmed' : 'Standby'}
+                  </StatusFlag>
+                ),
+              },
+            ]}
+            rows={courseStats}
+            rowKey={s => s.student_id}
+            empty={<BoardEmpty note="Nobody is enrolled in this course yet.">No students</BoardEmpty>}
+          />
+        </section>
       )}
     </div>
   );

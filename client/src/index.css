@@ -1,76 +1,306 @@
+@import '@fontsource-variable/archivo';
+@import '@fontsource-variable/martian-mono';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   THE DEPARTURE BOARD
+   ------------------------------------------------------------
+   A Solari split-flap board and the pass it prints.
+
+   The board is the system's view: matte slat-black, printed
+   ivory characters, amber for what is happening now. Every row
+   is a flap; every flap sits in a fixed cell; the 1px void
+   between rows is the gap between slats, and it is structural,
+   not decorative.
+
+   The pass is your copy: thermal stock, the one light object
+   in the system, printed once when a check-in clears.
+   ============================================================ */
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
-  }
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-  }
-}
+    /* --- the board itself --- */
+    --board:        60 5% 5%;     /* matte slat black, warm cast */
+    --slat:         45 5% 10%;    /* a flap face at rest */
+    --slat-raised:  45 5% 15%;    /* a flap face lifted */
+    --slat-edge:    45 5% 18%;    /* the hairline between flaps */
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
+    /* --- printed characters --- */
+    --char:         42 30% 90%;   /* ivory, printed on the flap */
+    --char-dim:     42 9% 68%;    /* secondary print, 8.2:1 on a slat */
+    --char-faint:   42 8% 52%;    /* ghosts and unlit cells, 4.9:1 on a slat */
+
+    /* --- board signals --- */
+    --amber:        38 90% 54%;   /* now: boarding, active, live */
+    --green:        150 55% 48%;  /* cleared, departed, verified */
+    --red:          6 78% 60%;    /* denied, cancelled, missed */
+
+    /* --- the pass --- */
+    --pass:         40 30% 93%;   /* thermal stock */
+    --pass-ink:     45 6% 11%;
+    --pass-fade:    42 8% 45%;
+
+    /* --- shadcn semantic layer, mapped onto the board --- */
+    --background: var(--board);
+    --foreground: var(--char);
+    --card: var(--slat);
+    --card-foreground: var(--char);
+    --popover: var(--slat);
+    --popover-foreground: var(--char);
+    --primary: var(--amber);
+    --primary-foreground: var(--board);
+    --secondary: var(--slat-raised);
+    --secondary-foreground: var(--char);
+    --muted: var(--slat);
+    --muted-foreground: var(--char-dim);
+    --accent: var(--slat-raised);
+    --accent-foreground: var(--char);
+    --destructive: var(--red);
+    --destructive-foreground: var(--board);
+    --border: var(--slat-edge);
+    --input: var(--slat-edge);
+    --ring: var(--amber);
+    --radius: 2px;
+
+    --font-board: 'Martian Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+    --font-sans: 'Archivo Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+    color-scheme: dark;
   }
+
+  /* The board does not have a light mode. It has a pass. */
+  .dark { color-scheme: dark; }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: 'tnum' 1, 'ss01' 1;
+    /* The board's slat grain: a fixed horizontal rule every 4px,
+       barely there, the way a real flap board reads under hall light. */
+    background-image: repeating-linear-gradient(
+      to bottom,
+      hsl(var(--char) / 0.014) 0px,
+      hsl(var(--char) / 0.014) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+    background-attachment: fixed;
   }
-  html {
-    @apply font-sans;
+
+  /* --- browser surfaces belong to the design system too --- */
+
+  ::selection {
+    background: hsl(var(--amber) / 0.28);
+    color: hsl(var(--char));
+  }
+
+  :root {
+    caret-color: hsl(var(--amber));
+    scrollbar-color: hsl(var(--slat-edge)) transparent;
+    scrollbar-width: thin;
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--board)); }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--slat-edge));
+    border: 3px solid hsl(var(--board));
+    border-radius: 0;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--char-faint)); }
+  ::-webkit-scrollbar-corner { background: hsl(var(--board)); }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--amber));
+    outline-offset: 2px;
+  }
+
+  a { text-underline-offset: 0.25em; text-decoration-thickness: 1px; }
+
+  /* Data is read in columns. Figures must line up, everywhere. */
+  .font-board, code, kbd, samp, pre { font-variant-numeric: tabular-nums; }
+
+  input::placeholder, textarea::placeholder { color: hsl(var(--char-faint)); }
+
+}
+
+@layer components {
+  /* --- the board --- */
+
+  /* A stack of flaps. The 1px void between rows is the slat gap. */
+  .board {
+    background: hsl(var(--board));
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .slat {
+    background: hsl(var(--slat));
+    transition: background-color 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .slat-interactive:hover { background: hsl(var(--slat-raised)); }
+
+  /* Column tracks follow the columns that survive each breakpoint, so a
+     shed column gives its width back instead of leaving a hole. */
+  .board-grid { display: grid; grid-template-columns: var(--board-cols); }
+  @media (min-width: 640px)  { .board-grid { grid-template-columns: var(--board-cols-sm); } }
+  @media (min-width: 768px)  { .board-grid { grid-template-columns: var(--board-cols-md); } }
+  @media (min-width: 1024px) { .board-grid { grid-template-columns: var(--board-cols-lg); } }
+
+  /* The board's printed header strip: amber caps, cut tight. */
+  .board-head {
+    font-family: var(--font-board);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: hsl(var(--amber));
+  }
+
+  .board-label {
+    font-family: var(--font-board);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: hsl(var(--char-dim));
+  }
+
+  /* Board type: fixed cells, tracked, always caps. */
+  .font-board {
+    font-family: var(--font-board);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A cell that was never filled. Drawn as deliberately as a filled one. */
+  .cell-empty {
+    color: hsl(var(--char-faint));
+    font-family: var(--font-board);
+  }
+
+  /* --- the pass --- */
+
+  .pass {
+    background: hsl(var(--pass));
+    color: hsl(var(--pass-ink));
+    box-shadow:
+      0 1px 2px hsl(0 0% 0% / 0.5),
+      0 18px 40px -12px hsl(0 0% 0% / 0.7);
+  }
+
+  /* The perforation between the pass and its stub. */
+  .pass-perf {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      hsl(var(--pass-fade) / 0.55) 0px,
+      hsl(var(--pass-fade) / 0.55) 4px,
+      transparent 4px,
+      transparent 9px
+    );
+    background-size: 1px 100%;
+    background-repeat: no-repeat;
+    background-position: center;
+  }
+
+  @media (max-width: 639px) {
+    .pass-perf {
+      background-image: repeating-linear-gradient(
+        to right,
+        hsl(var(--pass-fade) / 0.55) 0px,
+        hsl(var(--pass-fade) / 0.55) 4px,
+        transparent 4px,
+        transparent 9px
+      );
+      background-size: 100% 1px;
+      background-position: center;
+    }
   }
 }
 
-/* Base resets or globals missing from tailwind that we still need */
-#root {
-  min-height: 100vh;
+@layer utilities {
+  /* The flap turn. Half a beat down, half a beat up, no overshoot —
+     a flap is hinged, it cannot bounce. */
+  @keyframes flap-turn {
+    0%   { transform: rotateX(0deg);   filter: brightness(1); }
+    49%  { transform: rotateX(-90deg); filter: brightness(0.35); }
+    50%  { transform: rotateX(90deg);  filter: brightness(0.35); }
+    100% { transform: rotateX(0deg);   filter: brightness(1); }
+  }
+
+  /* A row arriving on the board pushes in from below, the way a new
+     departure does when the whole column shuffles up. */
+  @keyframes slat-arrive {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes gate-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+  }
+
+  .animate-slat-arrive {
+    animation: slat-arrive 320ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+
+  .animate-gate-pulse { animation: gate-pulse 1.6s ease-in-out infinite; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+    .animate-gate-pulse { animation: none !important; opacity: 1 !important; }
+  }
 }
+
+#root { min-height: 100vh; }
+
+
+/* ------------------------------------------------------------------
+   Leaflet ships its own light chrome and its own un-layered stylesheet,
+   so these rules stay outside @layer to win on cascade order.
+
+   The basemap is a light one turned into the board's register. Only
+   .leaflet-tile is inverted — the overlay panes sit above it, so the
+   geofence polygons keep the colours they were given.
+   ------------------------------------------------------------------ */
+
+.leaflet-container {
+  background: hsl(var(--board)) !important;
+  font-family: var(--font-sans);
+}
+
+.leaflet-tile {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9) saturate(0.45);
+}
+
+.leaflet-control-attribution {
+  background: hsl(var(--board) / 0.85) !important;
+  color: hsl(var(--char-faint)) !important;
+  font-size: 10px !important;
+}
+.leaflet-control-attribution a { color: hsl(var(--char-dim)) !important; }
+
+.leaflet-bar a {
+  background: hsl(var(--slat)) !important;
+  color: hsl(var(--char)) !important;
+  border-color: hsl(var(--slat-edge)) !important;
+  border-radius: 0 !important;
+}
+.leaflet-bar a:hover { background: hsl(var(--slat-raised)) !important; }
+.leaflet-bar { border: 1px solid hsl(var(--slat-edge)) !important; border-radius: 0 !important; }

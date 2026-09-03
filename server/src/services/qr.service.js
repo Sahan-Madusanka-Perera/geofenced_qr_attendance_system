@@ -128,6 +128,9 @@ function startQRRotation(sessionId) {
   const sessionData = {
     clients: new Set(),
     interval: null,
+    // The payload currently on screen. A projector opened mid-cycle gets
+    // this immediately instead of staring at nothing until the next tick.
+    lastPayload: null,
   };
 
   const pushUpdate = async () => {
@@ -137,7 +140,11 @@ function startQRRotation(sessionId) {
         qr: qrDataUrl,
         expiresAt: expiresAt.toISOString(),
         refreshInterval: REFRESH_INTERVAL,
+        // The token outlives the rotation (15s vs 10s) so a scan begun just
+        // before a turn still clears. The projector counts against this.
+        tokenTtl: TOKEN_TTL,
       });
+      sessionData.lastPayload = data;
 
       for (const client of sessionData.clients) {
         client.write(`data: ${data}\n\n`);
@@ -176,6 +183,9 @@ function addSSEClient(sessionId, res) {
   const sessionData = activeSessions.get(sessionId);
   if (sessionData) {
     sessionData.clients.add(res);
+    if (sessionData.lastPayload) {
+      res.write(`data: ${sessionData.lastPayload}\n\n`);
+    }
     return true;
   }
   return false;

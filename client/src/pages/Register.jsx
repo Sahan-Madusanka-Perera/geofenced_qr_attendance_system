@@ -4,25 +4,14 @@ import { register as apiRegister } from '../services/api';
 import { useFingerprint } from '../hooks/useFingerprint';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
-import { Button } from "@/components/ui/button"
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { GraduationCap, ShieldCheck, ShieldAlert, Loader2 } from 'lucide-react';
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import BoardMark from '../components/board/BoardMark';
+import { Fingerprint, Loader2, ShieldAlert } from 'lucide-react';
 
 const DEPARTMENTS = [
   'Computer Science',
@@ -43,14 +32,10 @@ export default function Register() {
   const { fingerprint, loading: fpLoading } = useFingerprint();
 
   const [form, setForm] = useState({
-    regNumber: '',
-    fullName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    department: '',
+    regNumber: '', fullName: '', email: '',
+    password: '', confirmPassword: '', department: '',
   });
-  const [, setError] = useState('');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
@@ -58,195 +43,149 @@ export default function Register() {
     setError('');
   };
 
-  const handleSelectChange = (value) => {
-    setForm(prev => ({ ...prev, department: value }));
-    setError('');
-  };
+  const fail = (msg) => { setError(msg); toast.error(msg); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (form.password !== form.confirmPassword) {
-      setError('Passwords do not match');
-      toast.error('Passwords do not match');
-      return;
-    }
-
-    if (form.password.length < 6) {
-      setError('Password must be at least 6 characters');
-      toast.error('Password must be at least 6 characters');
-      return;
-    }
+    if (!form.department) return fail('Choose a department.');
+    if (form.password.length < 6) return fail('Password must be at least 6 characters.');
+    if (form.password !== form.confirmPassword) return fail('The two passwords do not match.');
 
     setLoading(true);
     try {
-      const data = await apiRegister({
-        regNumber: form.regNumber,
-        fullName: form.fullName,
-        email: form.email,
-        password: form.password,
-        department: form.department,
-        fingerprint,
-      });
-
+      const data = await apiRegister({ ...form, fingerprint });
       login({ ...data.user, role: 'student' });
-      toast.success('Registration successful!');
-      setTimeout(() => navigate('/dashboard'), 500);
+      navigate('/dashboard', { replace: true });
     } catch (err) {
-      setError(err.message);
-      toast.error(err.message);
-    } finally {
+      fail(err.message);
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center p-4 bg-muted/40 py-10">
-      <Card className="w-full max-w-lg shadow-lg border-muted">
-        <CardHeader className="space-y-2 text-center pb-6">
-          <div className="mx-auto bg-primary/10 w-12 h-12 rounded-full flex items-center justify-center mb-2">
-            <GraduationCap className="w-6 h-6 text-primary" />
+    <div className="min-h-screen bg-board px-5 py-10 sm:px-8 sm:py-14">
+      <div className="mx-auto w-full max-w-[560px]">
+        <div className="mb-9 flex items-center gap-3">
+          <BoardMark size={20} />
+          <span className="font-board text-[13px] font-bold uppercase tracking-[0.14em] text-char">
+            QR&nbsp;Attend
+          </span>
+        </div>
+
+        <h1 className="font-board text-2xl font-bold uppercase tracking-[0.04em] text-char">
+          Create an account
+        </h1>
+        <p className="mt-2.5 max-w-[56ch] text-sm leading-relaxed text-char-dim">
+          Registration binds this browser to your record. Use the phone you
+          will actually be scanning with in class.
+        </p>
+
+        <form onSubmit={handleSubmit} id="register-form" className="mt-9 space-y-6">
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="space-y-2.5">
+              <Label htmlFor="regNumber">Registration number</Label>
+              <Input id="regNumber" name="regNumber" placeholder="2021CS001"
+                value={form.regNumber} onChange={handleChange} required />
+            </div>
+            <div className="space-y-2.5">
+              <Label htmlFor="fullName">Full name</Label>
+              <Input id="fullName" name="fullName" autoComplete="name" placeholder="Amal Perera"
+                value={form.fullName} onChange={handleChange} required />
+            </div>
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">Create Account</CardTitle>
-          <CardDescription>
-            Register with your university details to track attendance
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} id="register-form" className="space-y-5">
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="regNumber">Registration Number</Label>
-                <Input
-                  id="regNumber"
-                  name="regNumber"
-                  placeholder="e.g. 2021CS001"
-                  value={form.regNumber}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  name="fullName"
-                  placeholder="Enter your full name"
-                  value={form.fullName}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
+          <div className="space-y-2.5">
+            <Label htmlFor="email">University email</Label>
+            <Input type="email" id="email" name="email" autoComplete="email"
+              placeholder="amal.p@stu.uni.edu" value={form.email} onChange={handleChange} required />
+          </div>
+
+          <div className="space-y-2.5">
+            <Label htmlFor="department">Department</Label>
+            <Select value={form.department} onValueChange={(v) => { setForm(p => ({ ...p, department: v })); setError(''); }}>
+              <SelectTrigger id="department">
+                <SelectValue placeholder="Choose a department" />
+              </SelectTrigger>
+              <SelectContent>
+                {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="space-y-2.5">
+              <Label htmlFor="password">Password</Label>
+              <Input type="password" id="password" name="password" autoComplete="new-password"
+                placeholder="At least 6 characters" value={form.password} onChange={handleChange} required />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">University Email</Label>
-              <Input
-                type="email"
-                id="email"
-                name="email"
-                placeholder="your.name@stu.uni.edu"
-                value={form.email}
-                onChange={handleChange}
-                required
-              />
+            <div className="space-y-2.5">
+              <Label htmlFor="confirmPassword">Confirm password</Label>
+              <Input type="password" id="confirmPassword" name="confirmPassword" autoComplete="new-password"
+                placeholder="Type it again" value={form.confirmPassword} onChange={handleChange} required />
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="department">Department</Label>
-              <Select onValueChange={handleSelectChange} required>
-                <SelectTrigger id="department">
-                  <SelectValue placeholder="Select department..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {DEPARTMENTS.map(d => (
-                    <SelectItem key={d} value={d}>{d}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  type="password"
-                  id="password"
-                  name="password"
-                  placeholder="Min 6 characters"
-                  value={form.password}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <Input
-                  type="password"
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  placeholder="Re-enter password"
-                  value={form.confirmPassword}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="flex items-start p-3 bg-muted/50 rounded-md text-sm border">
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center gap-2 font-medium">
-                  🔒 Device Binding
+          {/* The device being bound, with the id that will be bound. */}
+          <div className="border border-slat-edge bg-slat p-4">
+            <div className="flex items-start gap-3">
+              <Fingerprint className="mt-0.5 size-4 shrink-0 text-amber" strokeWidth={2} />
+              <div className="min-w-0 flex-1">
+                <div className="font-board text-[10px] font-semibold uppercase tracking-board text-char">
+                  Device binding
                 </div>
-                <div className="text-muted-foreground">
-                  Your browser will be securely linked to your account.
-                </div>
-                <div className="pt-1 font-medium">
+                <p className="mt-1.5 text-[13px] leading-relaxed text-char-dim">
+                  This browser becomes your one permitted device. Checking in
+                  from another one is refused until a lecturer releases it.
+                </p>
+                <div className="mt-3 flex items-center gap-2 border-t border-slat-edge pt-3">
                   {fpLoading ? (
-                    <span className="flex items-center text-muted-foreground">
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Detecting device...
-                    </span>
+                    <>
+                      <Loader2 className="size-3.5 shrink-0 animate-spin text-char-dim" />
+                      <span className="font-board text-[10px] uppercase tracking-board text-char-dim">
+                        Reading device
+                      </span>
+                    </>
                   ) : fingerprint ? (
-                    <span className="flex items-center text-emerald-600 dark:text-emerald-500">
-                      <ShieldCheck className="w-3 h-3 mr-1" /> Device detected securely
-                    </span>
+                    <>
+                      <span className="size-1.5 shrink-0 bg-green" aria-hidden="true" />
+                      <span className="font-board text-[10px] font-semibold uppercase tracking-board text-green">
+                        Bound
+                      </span>
+                      <span className="truncate font-board text-[10px] text-char-faint">
+                        {fingerprint.slice(0, 16)}…
+                      </span>
+                    </>
                   ) : (
-                    <span className="flex items-center text-amber-600 dark:text-amber-500">
-                      <ShieldAlert className="w-3 h-3 mr-1" /> Could not detect device
-                    </span>
+                    <>
+                      <ShieldAlert className="size-3.5 shrink-0 text-amber" strokeWidth={2} />
+                      <span className="font-board text-[10px] uppercase tracking-board text-amber">
+                        No device id — check-in will be refused
+                      </span>
+                    </>
                   )}
                 </div>
               </div>
             </div>
+          </div>
 
-            <Button
-              className="w-full"
-              size="lg"
-              type="submit"
-              disabled={loading}
-              id="register-submit"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating Account...
-                </>
-              ) : 'Register'}
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex justify-center border-t p-6">
-          <p className="text-sm text-muted-foreground">
-            Already registered?{' '}
-            <Link to="/login" className="text-primary hover:underline font-medium">
-              Sign in here
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
+          {error && (
+            <p role="alert" className="border border-[hsl(var(--red)/0.32)] bg-[hsl(var(--red)/0.1)] px-3 py-2.5 text-[13px] leading-relaxed text-red">
+              {error}
+            </p>
+          )}
+
+          <Button className="w-full" size="lg" type="submit" disabled={loading} id="register-submit">
+            {loading ? 'Creating account' : 'Create account'}
+          </Button>
+        </form>
+
+        <p className="mt-8 border-t border-slat-edge pt-6 text-sm text-char-dim">
+          Already registered?{' '}
+          <Link to="/login" className="font-medium text-amber underline underline-offset-4 hover:text-char">
+            Sign in
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

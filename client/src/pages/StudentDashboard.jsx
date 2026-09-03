@@ -1,250 +1,258 @@
 import { useState, useEffect } from 'react';
 import { getStudentStats as fetchStats, getStudentHistory } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import ProgressRing from '../components/ProgressRing';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart3, CheckCircle2, AlertTriangle } from 'lucide-react';
+import Masthead from '../components/board/Masthead';
+import Board, { BoardEmpty } from '../components/board/Board';
+import StatusFlag from '../components/board/StatusFlag';
+import ThresholdBar from '../components/board/ThresholdBar';
+import SignalCell from '../components/board/SignalCell';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ChevronRight } from 'lucide-react';
+
+const THRESHOLD = 80;
+
+function plural(n, one, many) {
+  return `${n} ${n === 1 ? one : many}`;
+}
 
 export default function StudentDashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
-  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [selected, setSelected] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     fetchStats()
-      .then(data => {
-        setStats(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setLoading(false);
-      });
+      .then(setStats)
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
   }, []);
 
-  const loadHistory = async (courseId) => {
-    setSelectedCourse(courseId);
+  const openCourse = async (course) => {
+    if (selected?.course_id === course.course_id) {
+      setSelected(null);
+      return;
+    }
+    setSelected(course);
+    setHistory([]);
     try {
-      const data = await getStudentHistory(courseId);
-      setHistory(data.history);
-    } catch (err) {
-      console.error(err);
+      const data = await getStudentHistory(course.course_id);
+      setHistory(data.history || []);
+    } catch {
+      setHistory([]);
     }
   };
 
   if (loading) {
     return (
-      <div className="container mx-auto py-8 space-y-8">
-        <Skeleton className="h-[200px] w-full rounded-xl" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => (
-            <Skeleton key={i} className="h-[120px] rounded-xl" />
-          ))}
-        </div>
+      <div className="mx-auto max-w-[1400px] space-y-8 px-4 py-10 sm:px-6">
+        <Skeleton className="h-9 w-72" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
 
-  if (!stats) {
+  if (failed || !stats) {
     return (
-      <div className="container mx-auto py-32 text-center">
-        <div className="mx-auto bg-muted w-20 h-20 rounded-full flex items-center justify-center mb-4">
-          <BarChart3 className="w-10 h-10 text-muted-foreground" />
-        </div>
-        <h2 className="text-2xl font-bold">No Data Available</h2>
-        <p className="text-muted-foreground mt-2">Check back after your first session.</p>
+      <div className="mx-auto max-w-[1400px] px-4 py-10 sm:px-6">
+        <Masthead
+          title="Attendance record"
+          detail={failed
+            ? 'The board could not reach the server. Reload the page; if it keeps failing, the API is down.'
+            : 'Nothing has been recorded against your registration number yet. Your first check-in starts this record.'}
+        />
       </div>
     );
   }
 
   const { overall, courses } = stats;
+  const cleared = overall.attendance_pct >= THRESHOLD;
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Attendance Dashboard</h1>
-        <p className="text-muted-foreground">Welcome back, {user?.full_name}</p>
-      </div>
+    <div className="mx-auto max-w-[1400px] space-y-10 px-4 py-10 sm:px-6 sm:py-12">
+      <Masthead
+        title="Attendance record"
+        detail={`${user?.full_name}${user?.reg_number ? ` · ${user.reg_number}` : ''}`}
+        aside={
+          <StatusFlag tone={cleared ? 'clear' : 'deny'} size="md" flap>
+            {cleared ? 'Confirmed' : 'Standby'}
+          </StatusFlag>
+        }
+      />
 
-      {/* Overall Progress */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row items-center gap-8">
-            <div className="flex-shrink-0">
-              <ProgressRing percentage={overall.attendance_pct} label="Overall" />
-            </div>
-
-            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-              <Card className="bg-muted/40 border-none shadow-none">
-                <CardContent className="p-4 flex flex-col justify-center h-full">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Classes Attended</p>
-                  <p className="text-3xl font-bold font-mono">{overall.classes_attended}</p>
-                  <p className="text-xs text-muted-foreground mt-1">of {overall.total_classes} total</p>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/40 border-none shadow-none">
-                <CardContent className="p-4 flex flex-col justify-center h-full">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Attendance Rate</p>
-                  <p className={`text-3xl font-bold font-mono ${overall.attendance_pct >= 80 ? 'text-emerald-500' : overall.attendance_pct >= 60 ? 'text-amber-500' : 'text-destructive'}`}>
-                    {overall.attendance_pct}%
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">{overall.attendance_pct >= 80 ? 'Above threshold' : 'Below 80% threshold'}</p>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/40 border-none shadow-none">
-                <CardContent className="p-4 flex flex-col justify-center h-full">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">{overall.status === 'safe' ? 'Can Miss' : 'Must Attend'}</p>
-                  <p className={`text-3xl font-bold font-mono ${overall.status === 'safe' ? 'text-emerald-500' : 'text-destructive'}`}>
-                    {overall.status === 'safe' ? overall.can_miss : overall.must_attend}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {overall.status === 'safe'
-                      ? `class${overall.can_miss !== 1 ? 'es' : ''} and stay ≥80%`
-                      : `more class${overall.must_attend !== 1 ? 'es' : ''} to reach 80%`
-                    }
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/40 border-none shadow-none">
-                <CardContent className="p-4 flex flex-col justify-center h-full">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Status</p>
-                  <div>
-                    {overall.status === 'safe' ? (
-                      <Badge variant="default" className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 border-none dark:text-emerald-400">
-                        <CheckCircle2 className="w-3 h-3 mr-1" /> Eligible
-                      </Badge>
-                    ) : (
-                      <Badge variant="destructive" className="bg-destructive/15 text-destructive hover:bg-destructive/25 border-none dark:text-destructive-foreground">
-                        <AlertTriangle className="w-3 h-3 mr-1" /> At Risk
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {overall.status === 'safe' ? '80% requirement met' : 'Attend more classes'}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+      {/* Standing against the cutoff. The bar is the object; the number reads off it. */}
+      <section className="border border-slat-edge bg-slat p-5 sm:p-7">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
+          <div className="flex items-baseline gap-3">
+            <span className={`font-board text-4xl font-bold leading-none tracking-tight sm:text-5xl ${cleared ? 'text-green' : 'text-red'}`}>
+              {overall.attendance_pct}%
+            </span>
+            <span className="font-board text-[11px] uppercase tracking-board text-char-dim">
+              {overall.classes_attended} of {overall.total_classes} classes
+            </span>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Course Breakdown */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-bold">Course Breakdown</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {courses.map((course) => {
-            const pctColorClass = course.attendance_pct >= 80 ? 'bg-emerald-500' : course.attendance_pct >= 60 ? 'bg-amber-500' : 'bg-destructive';
-            const badgeVariant = course.attendance_pct >= 80 ? 'default' : course.attendance_pct >= 60 ? 'secondary' : 'destructive';
-            
-            return (
-              <Card 
-                key={course.course_id} 
-                className="cursor-pointer hover:border-primary/50 transition-colors duration-200"
-                onClick={() => loadHistory(course.course_id)}
-                id={`course-card-${course.course_id}`}
-              >
-                <CardHeader className="pb-3 flex flex-row items-start justify-between space-y-0">
-                  <div>
-                    <CardTitle className="text-sm font-mono text-primary font-bold">{course.course_code}</CardTitle>
-                    <CardDescription className="text-base font-semibold text-foreground mt-1">{course.course_name}</CardDescription>
-                  </div>
-                  <Badge variant={badgeVariant}>{course.attendance_pct}%</Badge>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <Progress value={Math.min(course.attendance_pct, 100)} className="h-2" indicatorClassName={pctColorClass} />
-                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-                      <span>{course.classes_attended}/{course.total_classes} classes</span>
-                      <span className={course.status === 'safe' ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}>
-                        {course.status === 'safe'
-                          ? `Can miss ${course.can_miss} more`
-                          : `Need ${course.must_attend} more`
-                        }
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
         </div>
-      </div>
 
-      {/* Session History */}
-      {selectedCourse && history.length > 0 && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <h2 className="text-xl font-bold">Session History</h2>
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Check-in Time</TableHead>
-                  <TableHead>GPS Verified</TableHead>
-                  <TableHead>Device Verified</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {history.map((session) => (
-                  <TableRow key={session.session_id}>
-                    <TableCell className="font-mono text-sm">
-                      {new Date(session.session_date).toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </TableCell>
-                    <TableCell>
-                      {session.attended ? (
-                        <Badge variant="default" className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 border-none">
-                          <CheckCircle2 className="w-3 h-3 mr-1" /> Present
-                        </Badge>
-                      ) : (
-                        <Badge variant="destructive" className="bg-destructive/15 text-destructive hover:bg-destructive/25 border-none">
-                          <AlertTriangle className="w-3 h-3 mr-1" /> Absent
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm text-muted-foreground">
-                      {session.check_in_time
-                        ? new Date(session.check_in_time).toLocaleTimeString()
-                        : '—'}
-                    </TableCell>
-                    <TableCell>
-                      {session.attended ? (
-                        session.geo_verified ? '✅' : '❌'
-                      ) : '—'}
-                    </TableCell>
-                    <TableCell>
-                      {session.attended ? (
-                        session.device_verified ? '✅' : '❌'
-                      ) : '—'}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+        <ThresholdBar
+          value={overall.attendance_pct}
+          threshold={THRESHOLD}
+          height="h-4"
+          showScale
+          className="mt-6"
+        />
+
+        <div className="mt-6 border-t border-slat-edge pt-5">
+          <p className="max-w-[64ch] text-[15px] leading-relaxed text-char-dim">
+            {cleared
+              ? (overall.can_miss === 0
+                  ? <>You are exactly on the {THRESHOLD}% cutoff. Missing one more class drops you below it.</>
+                  : <>You can miss <span className="font-board font-semibold text-char">{plural(overall.can_miss, 'more class', 'more classes')}</span> and still clear the {THRESHOLD}% cutoff.</>)
+              : <>You need <span className="font-board font-semibold text-char">{plural(overall.must_attend, 'more class', 'more classes')}</span> to reach the {THRESHOLD}% cutoff.</>}
+          </p>
         </div>
+      </section>
+
+      {/* Courses */}
+      <section className="space-y-4">
+        <h2 className="font-board text-[11px] font-semibold uppercase tracking-gate text-char-dim">
+          Courses
+        </h2>
+
+        <Board
+          columns={[
+            {
+              key: 'course', label: 'Course', width: 'minmax(0,2.4fr)',
+              render: c => (
+                <div className="min-w-0">
+                  <div className="font-board text-[12px] font-bold uppercase tracking-tight text-char">
+                    {c.course_code}
+                  </div>
+                  <div className="truncate text-[13px] text-char-dim">{c.course_name}</div>
+                </div>
+              ),
+            },
+            {
+              key: 'bar', label: 'Against cutoff', width: 'minmax(0,2fr)', hideBelow: 'md',
+              render: c => (
+                <div className="w-full pr-4">
+                  <ThresholdBar value={c.attendance_pct} threshold={THRESHOLD} />
+                </div>
+              ),
+            },
+            {
+              key: 'pct', label: 'Rate', width: '84px', align: 'right',
+              render: c => (
+                <span className={`font-board text-[13px] font-bold ${c.attendance_pct >= THRESHOLD ? 'text-green' : 'text-red'}`}>
+                  {c.attendance_pct}%
+                </span>
+              ),
+            },
+            {
+              key: 'count', label: 'Classes', width: '92px', align: 'right', hideBelow: 'sm',
+              render: c => (
+                <span className="font-board text-[12px] text-char-dim">
+                  {c.classes_attended}/{c.total_classes}
+                </span>
+              ),
+            },
+            {
+              key: 'margin', label: 'Margin', width: 'minmax(0,1.2fr)', align: 'right', hideBelow: 'lg',
+              render: c => (
+                <span className="truncate font-board text-[10px] uppercase tracking-board text-char-dim">
+                  {c.status !== 'safe'
+                    ? `Needs ${c.must_attend}`
+                    : c.can_miss === 0
+                      ? 'No margin'
+                      : `Can miss ${c.can_miss}`}
+                </span>
+              ),
+            },
+            {
+              key: 'open', label: '', width: '28px', align: 'right',
+              render: c => (
+                <ChevronRight
+                  className={`size-4 text-char-faint transition-transform ${selected?.course_id === c.course_id ? 'rotate-90 text-amber' : ''}`}
+                  aria-hidden="true"
+                />
+              ),
+            },
+          ]}
+          rows={courses}
+          rowKey={c => c.course_id}
+          onRowClick={openCourse}
+          isRowOpen={c => selected?.course_id === c.course_id}
+          rowLabel={c => `${c.course_code}, ${c.attendance_pct} percent. Show sessions.`}
+          empty={<BoardEmpty note="You are not enrolled in any course yet.">No courses</BoardEmpty>}
+        />
+
+        <div className="sr-only" aria-live="polite">
+          {selected ? `Showing sessions for ${selected.course_code}` : ''}
+        </div>
+      </section>
+
+      {/* Session history */}
+      {selected && (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="font-board text-[11px] font-semibold uppercase tracking-gate text-char-dim">
+              {selected.course_code} sessions
+            </h2>
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              className="font-board text-[10px] uppercase tracking-board text-char-faint underline underline-offset-4 hover:text-char"
+            >
+              Close
+            </button>
+          </div>
+
+          <Board
+            arriving
+            className="max-w-4xl"
+            columns={[
+              {
+                key: 'date', label: 'Date', width: 'minmax(0,1fr)',
+                render: s => (
+                  <span className="font-board text-[12px] uppercase text-char">
+                    {new Date(s.session_date).toLocaleDateString([], {
+                      day: '2-digit', month: 'short', year: 'numeric',
+                    })}
+                  </span>
+                ),
+              },
+              {
+                key: 'status', label: 'Record', width: '120px',
+                render: s => (
+                  <StatusFlag tone={s.attended ? 'clear' : 'deny'}>
+                    {s.attended ? 'Present' : 'Absent'}
+                  </StatusFlag>
+                ),
+              },
+              {
+                key: 'time', label: 'Checked in', width: '110px', hideBelow: 'sm',
+                render: s => s.check_in_time ? (
+                  <span className="font-board text-[12px] text-char-dim">
+                    {new Date(s.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                  </span>
+                ) : <span className="font-board text-[12px] text-char-faint">--:--</span>,
+              },
+              {
+                key: 'gps', label: 'GPS', width: '52px', align: 'center', hideBelow: 'sm',
+                render: s => <SignalCell label="GPS" on={s.geo_verified} off={!s.attended} />,
+              },
+              {
+                key: 'device', label: 'Device', width: '62px', align: 'center', hideBelow: 'sm',
+                render: s => <SignalCell label="Device" on={s.device_verified} off={!s.attended} />,
+              },
+            ]}
+            rows={history}
+            rowKey={s => s.session_id}
+            empty={<BoardEmpty note="No sessions have been held for this course yet.">No sessions</BoardEmpty>}
+          />
+        </section>
       )}
     </div>
   );

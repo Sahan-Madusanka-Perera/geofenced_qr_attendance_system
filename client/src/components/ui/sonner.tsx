@@ -1,47 +1,37 @@
-import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
-import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
+import { CircleCheck, Info, TriangleAlert, OctagonX, Loader2 } from "lucide-react"
 
-const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
-
-  return (
-    <Sonner
-      theme={theme as ToasterProps["theme"]}
-      className="toaster group"
-      icons={{
-        success: (
-          <CircleCheckIcon className="size-4" />
-        ),
-        info: (
-          <InfoIcon className="size-4" />
-        ),
-        warning: (
-          <TriangleAlertIcon className="size-4" />
-        ),
-        error: (
-          <OctagonXIcon className="size-4" />
-        ),
-        loading: (
-          <Loader2Icon className="size-4 animate-spin" />
-        ),
-      }}
-      style={
-        {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius)",
-        } as React.CSSProperties
-      }
-      toastOptions={{
-        classNames: {
-          toast: "cn-toast",
-        },
-      }}
-      {...props}
-    />
-  )
-}
+/* Toasts are slats: square, board type, one edge lit by the tone. */
+const Toaster = ({ ...props }: ToasterProps) => (
+  <Sonner
+    theme="dark"
+    position="bottom-right"
+    className="toaster group"
+    icons={{
+      success: <CircleCheck className="size-4 text-green" />,
+      info: <Info className="size-4 text-char-dim" />,
+      warning: <TriangleAlert className="size-4 text-amber" />,
+      error: <OctagonX className="size-4 text-red" />,
+      loading: <Loader2 className="size-4 animate-spin text-amber" />,
+    }}
+    style={
+      {
+        "--normal-bg": "hsl(var(--slat))",
+        "--normal-text": "hsl(var(--char))",
+        "--normal-border": "hsl(var(--slat-edge))",
+        "--border-radius": "0px",
+      } as React.CSSProperties
+    }
+    toastOptions={{
+      classNames: {
+        toast:
+          "!rounded-none !border !border-slat-edge !bg-slat !text-char !font-sans !text-[13px] !shadow-[0_18px_40px_-12px_rgba(0,0,0,0.8)]",
+        title: "!font-board !text-[11px] !font-semibold !uppercase !tracking-board",
+        description: "!text-char-dim !text-[13px]",
+      },
+    }}
+    {...props}
+  />
+)
 
 export { Toaster }
