@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart3, Calendar, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { BarChart3, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 export default function StudentDashboard() {
   const { user } = useAuth();

@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, GraduationCap, Map, MonitorPlay, Calendar } from 'lucide-react';
+import { LogOut, Map, MonitorPlay, Calendar } from 'lucide-react';
 
 export default function Navbar() {
   const { user, logout } = useAuth();

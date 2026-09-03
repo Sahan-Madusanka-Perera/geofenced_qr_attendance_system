@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "db:migrate": "psql -h localhost -U admin -d attendance_db -f ../db/migrations/001_init.sql",
-    "db:seed": "psql -h localhost -U admin -d attendance_db -f ../db/migrations/002_seed.sql"
+    "test": "node --test tests/*.test.js",
+    "test:unit": "node --test tests/token.test.js",
+    "db:migrate": "psql -h ${DB_HOST:-localhost} -U ${DB_USER:-admin} -d ${DB_NAME:-attendance_db} -v ON_ERROR_STOP=1 -f ../db/migrations/001_init.sql",
+    "db:seed": "psql -h ${DB_HOST:-localhost} -U ${DB_USER:-admin} -d ${DB_NAME:-attendance_db} -v ON_ERROR_STOP=1 -f ../db/migrations/002_seed.sql"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

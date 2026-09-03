@@ -7,6 +7,15 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores(['dist']),
   {
+    // Build/config files run under Node, not the browser.
+    files: ['*.config.js'],
+    languageOptions: {
+      globals: { ...globals.node },
+      sourceType: 'module',
+    },
+  },
+  {
+    ignores: ['*.config.js'],
     files: ['**/*.{js,jsx}'],
     extends: [
       js.configs.recommended,

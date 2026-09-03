@@ -37,19 +37,19 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Play, Square, BarChart3, Download, Users, User, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Play, Square, BarChart3, Users, User, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 
 export default function LecturerDashboard() {
   const { user } = useAuth();
   const [courses, setCourses] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
-  const [sessions, setSessions] = useState([]);
+  const [, setSessions] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState('');
   const [selectedClassroom, setSelectedClassroom] = useState('');
   const [activeSession, setActiveSession] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [courseStats, setCourseStats] = useState([]);
-  const [statsCourseid, setStatsCourseId] = useState('');
+  const [, setStatsCourseId] = useState('');
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -88,7 +88,9 @@ export default function LecturerDashboard() {
       try {
         const att = await getAttendees(activeSession.id);
         setAttendees(att.attendees || []);
-      } catch {}
+      } catch {
+        // A failed poll is non-fatal; the next tick retries.
+      }
     }, 5000);
     return () => clearInterval(interval);
   }, [activeSession]);

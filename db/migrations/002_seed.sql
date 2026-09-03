@@ -42,7 +42,7 @@ INSERT INTO classrooms (name, building, geofence, center_lat, center_lng, radius
     79.85975,
     40
 )
-ON CONFLICT DO NOTHING;
+ON CONFLICT (name, building) DO NOTHING;
 
 -- 3. Sample Courses
 INSERT INTO courses (code, name, department, lecturer_id) VALUES
@@ -80,7 +80,8 @@ INSERT INTO sessions (course_id, classroom_id, lecturer_id, session_date, start_
 (2, 1, 1, '2026-06-10', '2026-06-10 14:00:00+05:30', '2026-06-10 15:00:00+05:30', false),
 (3, 2, 2, '2026-06-02', '2026-06-02 11:00:00+05:30', '2026-06-02 12:00:00+05:30', false),
 (3, 2, 2, '2026-06-05', '2026-06-05 11:00:00+05:30', '2026-06-05 12:00:00+05:30', false),
-(3, 2, 2, '2026-06-09', '2026-06-09 11:00:00+05:30', '2026-06-09 12:00:00+05:30', false);
+(3, 2, 2, '2026-06-09', '2026-06-09 11:00:00+05:30', '2026-06-09 12:00:00+05:30', false)
+ON CONFLICT (course_id, classroom_id, start_time) DO NOTHING;
 
 -- 7. Sample Attendance Records
 INSERT INTO attendance (session_id, student_id, geo_verified, device_verified) VALUES
@@ -97,4 +98,5 @@ INSERT INTO attendance (session_id, student_id, geo_verified, device_verified) V
 -- Dilshan: 2/3 sessions for EE2010 (67%)
 (8, 4, true, true), (9, 4, true, true),
 -- Sachini: 3/3 sessions for EE2010 (100%)
-(8, 5, true, true), (9, 5, true, true), (10, 5, true, true);
+(8, 5, true, true), (9, 5, true, true), (10, 5, true, true)
+ON CONFLICT (session_id, student_id) DO NOTHING;

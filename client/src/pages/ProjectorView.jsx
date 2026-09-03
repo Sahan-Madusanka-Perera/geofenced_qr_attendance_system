@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
-import { MonitorPlay, ArrowLeft, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { MonitorPlay, ArrowLeft, Loader2, WifiOff } from 'lucide-react';
 
 export default function ProjectorView() {
   const { user } = useAuth();

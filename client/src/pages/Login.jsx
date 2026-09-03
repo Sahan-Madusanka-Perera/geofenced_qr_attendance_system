@@ -27,7 +27,7 @@ export default function Login() {
     password: '',
     role: 'student',
   });
-  const [error, setError] = useState('');
+  const [, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {

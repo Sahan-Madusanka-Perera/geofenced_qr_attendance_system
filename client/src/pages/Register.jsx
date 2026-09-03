@@ -50,7 +50,7 @@ export default function Register() {
     confirmPassword: '',
     department: '',
   });
-  const [error, setError] = useState('');
+  const [, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {

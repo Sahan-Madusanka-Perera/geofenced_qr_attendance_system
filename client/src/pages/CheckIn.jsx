@@ -11,7 +11,7 @@ export default function CheckIn() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { getPosition, loading: gpsLoading, error: gpsError } = useGeolocation();
+  const { getPosition, error: gpsError } = useGeolocation();
   const { fingerprint } = useFingerprint();
 
   const token = searchParams.get('token');

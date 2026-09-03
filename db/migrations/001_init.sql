@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS students (
     updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_students_reg ON students(reg_number);
-CREATE INDEX idx_students_fingerprint ON students(device_fingerprint);
+CREATE INDEX IF NOT EXISTS idx_students_reg ON students(reg_number);
+CREATE INDEX IF NOT EXISTS idx_students_fingerprint ON students(device_fingerprint);
 
 -- ============================================================
 -- 2. Lecturers
@@ -50,7 +50,12 @@ CREATE TABLE IF NOT EXISTS classrooms (
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_classrooms_geofence ON classrooms USING GIST(geofence);
+CREATE INDEX IF NOT EXISTS idx_classrooms_geofence ON classrooms USING GIST(geofence);
+
+-- A room is uniquely identified by its name within a building. Also lets the
+-- seed data be re-applied without creating duplicate classrooms.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_classrooms_name_building
+    ON classrooms(name, building);
 
 -- ============================================================
 -- 4. Courses
@@ -81,8 +86,13 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_sessions_active ON sessions(is_active) WHERE is_active = true;
-CREATE INDEX idx_sessions_course ON sessions(course_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_active ON sessions(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_sessions_course ON sessions(course_id);
+
+-- A course cannot meet twice in the same room at the same instant. Also keeps
+-- the seed data idempotent when migrations are re-applied.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_unique_slot
+    ON sessions(course_id, classroom_id, start_time);
 
 -- ============================================================
 -- 6. Course Enrollments
@@ -112,5 +122,5 @@ CREATE TABLE IF NOT EXISTS attendance (
     UNIQUE(session_id, student_id)
 );
 
-CREATE INDEX idx_attendance_session ON attendance(session_id);
-CREATE INDEX idx_attendance_student ON attendance(student_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_session ON attendance(session_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_student ON attendance(student_id);

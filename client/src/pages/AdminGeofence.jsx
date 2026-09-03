@@ -36,7 +36,7 @@ export default function AdminGeofence() {
   const [positions, setPositions] = useState([]);
   const [name, setName] = useState('');
   const [building, setBuilding] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     loadClassrooms();
