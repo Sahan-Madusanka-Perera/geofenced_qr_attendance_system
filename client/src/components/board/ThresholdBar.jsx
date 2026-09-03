@@ -20,9 +20,14 @@ export default function ThresholdBar({
   return (
     <div className={className}>
       <div className={`relative w-full bg-slat-raised ${height}`}>
+        {/* Scaled, not resized: a width transition thrashes layout on every
+            frame, and a solid block distorts under scaleX by nothing at all. */}
         <div
-          className={`h-full ${fill}`}
-          style={{ width: `${pct}%`, transition: 'width 700ms cubic-bezier(0.16, 1, 0.3, 1)' }}
+          className={`h-full w-full origin-left ${fill}`}
+          style={{
+            transform: `scaleX(${pct / 100})`,
+            transition: 'transform 700ms cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
         />
         {/* the cutoff, printed across the bar */}
         <div

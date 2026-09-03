@@ -223,8 +223,11 @@ export default function ProjectorView() {
       <div className="shrink-0">
         <div className="h-1.5 w-full bg-slat" aria-hidden="true">
           <div
-            className={`h-full ${ended ? 'bg-char-faint' : 'bg-amber'}`}
-            style={{ width: `${ended ? 100 : remainingPct}%`, transition: 'width 250ms linear' }}
+            className={`h-full w-full origin-left ${ended ? 'bg-char-faint' : 'bg-amber'}`}
+            style={{
+              transform: `scaleX(${(ended ? 100 : remainingPct) / 100})`,
+              transition: 'transform 250ms linear',
+            }}
           />
         </div>
       </div>

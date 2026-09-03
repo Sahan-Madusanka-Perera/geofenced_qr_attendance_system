@@ -285,8 +285,10 @@
   font-family: var(--font-sans);
 }
 
-.leaflet-tile {
-  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9) saturate(0.45);
+/* Leaflet itself declares `.leaflet-tile { filter: inherit }` and its
+   stylesheet loads after this one, so the override has to outrank it. */
+.leaflet-container .leaflet-tile {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.86) saturate(0.4) !important;
 }
 
 .leaflet-control-attribution {
